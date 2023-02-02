@@ -3,10 +3,15 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
 
 import java.io.IOException;
+import java.io.File;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
+
+import org.gradle.tooling.GradleConnector;
+import org.gradle.tooling.ProjectConnection;
+import org.gradle.tooling.TestLauncher;
 
 /**
  Skeleton of a ContinuousIntegrationServer which acts as webhook
@@ -37,6 +42,21 @@ public class ContinuousIntegrationServer extends AbstractHandler
     // used to start the CI server in command line
     public static void main(String[] args) throws Exception
     {
+
+        // Run tests
+        // TODO: change pathname to cloned project
+        ProjectConnection connection = GradleConnector.newConnector()
+                .forProjectDirectory(new File("https://github.com/gustafbergmark/CI/tree/b22a6288b948f84e070ae3b868f1de70c6d21d88"))
+                .connect();
+
+        try {
+            //connection.newBuild().forTasks("tasks").run();
+            TestLauncher launcher = connection.newTestLauncher();
+            launcher.run(); // run all tests
+        } finally {
+            connection.close();
+        }
+
         Server server = new Server(8080);
         server.setHandler(new ContinuousIntegrationServer());
         server.start();
