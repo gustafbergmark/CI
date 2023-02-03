@@ -1,3 +1,4 @@
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -5,10 +6,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-import org.apache.commons.io.FileUtils;
 
 
 class ContinuousIntegrationServerTest {
@@ -24,7 +21,8 @@ class ContinuousIntegrationServerTest {
     @Test
     void testClonePublic() {
         String repoUrl = "https://github.com/gustafbergmark/CI.git";
-        ContinuousIntegrationServer.clone(repoUrl);
+        String branch = "master";
+        ContinuousIntegrationServer.clone(repoUrl, branch);
         Path p = Paths.get("./local");
         try {
             FileUtils.deleteDirectory(p.toFile());
@@ -32,5 +30,20 @@ class ContinuousIntegrationServerTest {
             e.printStackTrace();
         }
     }
+    @Test
+    void testClonePublicBranch() {
+        String repoUrl = "https://github.com/gustafbergmark/CI.git";
+        String branch = "2-implement-cloning-from-github";
+        ContinuousIntegrationServer.clone(repoUrl, branch);
+        Path p = Paths.get("./local");
+
+        try {
+            FileUtils.deleteDirectory(p.toFile());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
 }
