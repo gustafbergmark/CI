@@ -38,19 +38,20 @@ public class ContinuousIntegrationServer extends AbstractHandler
 
     // used to start the CI server in command line
     public static void main(String[] args) throws Exception
-    {/*
+    {
         Server server = new Server(8080);
         server.setHandler(new ContinuousIntegrationServer());
         server.start();
-        server.join();*/
+        server.join();
+    }
 
-        String repoUrl = "https://github.com/gustafbergmark/CI.git";
-        String cloneDirectoryPath = "C:\\Users\\adamj\\testCloning2"; // Ex.in windows c:\\gitProjects\SpringBootMongoDbCRUD\
+    public static void clone(String repoUrl) {
+        Path p = Paths.get("./local");
         try {
             System.out.println("Cloning "+repoUrl+" into "+repoUrl);
             Git.cloneRepository()
                     .setURI(repoUrl)
-                    .setDirectory(Paths.get(cloneDirectoryPath).toFile())
+                    .setDirectory(p.toFile())
                     .call();
             System.out.println("Completed Cloning");
         } catch (GitAPIException e) {
