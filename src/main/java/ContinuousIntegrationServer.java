@@ -11,6 +11,7 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 
 import org.gradle.tooling.GradleConnector;
 import org.gradle.tooling.ProjectConnection;
+import org.gradle.tooling.TestExecutionException;
 import org.gradle.tooling.TestLauncher;
 
 /**
@@ -42,20 +43,29 @@ public class ContinuousIntegrationServer extends AbstractHandler
     // used to start the CI server in command line
     public static void main(String[] args) throws Exception
     {
-
+        System.out.println("hello");
         // Run tests
-        // TODO: change pathname to cloned project
-        ProjectConnection connection = GradleConnector.newConnector()
-                .forProjectDirectory(new File("https://github.com/gustafbergmark/CI/tree/b22a6288b948f84e070ae3b868f1de70c6d21d88"))
-                .connect();
-
+        ProjectConnection connection;
         try {
-            //connection.newBuild().forTasks("tasks").run();
+            GradleConnector connector = GradleConnector.newConnector();
+            // TODO: change pathname to cloned project
+            File projectDir = new File("./");
+            connector.forProjectDirectory(projectDir);
+
+            connection = connector.connect();
             TestLauncher launcher = connection.newTestLauncher();
-            launcher.run(); // run all tests
-        } finally {
-            connection.close();
+            // TODO: check all classes
+            launcher = launcher.withJvmTestClasses("ContinuousIntegrationServerTest");
+            launcher.run();
+        } catch (TestExecutionException ex) {
+            // Tests failed
+            // TODO: add appropriate handling of failure
+            ex.printStackTrace();
+        } catch(Exception ex) {
+            ex.printStackTrace();
         }
+
+        // TODO: Gracefully disconnect when done
 
         Server server = new Server(8080);
         server.setHandler(new ContinuousIntegrationServer());
