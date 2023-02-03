@@ -24,7 +24,7 @@ dependencies {
     // https://mvnrepository.com/artifat/javax.servlet/javax.servlet-api
     compileOnly group: 'javax.servlet', name: 'javax.servlet-api', version: '3.0.1'
 
-    implementation 'org.gradle:gradle-tooling-api:3.0'
+    implementation 'org.gradle:gradle-tooling-api:5.2.1'
     // The tooling API need an SLF4J implementation available at runtime, replace this with any other implementation
     runtimeOnly 'org.slf4j:slf4j-simple:1.7.10'
 }
