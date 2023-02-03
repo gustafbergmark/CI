@@ -7,7 +7,9 @@ import java.io.IOException;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
-
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import java.nio.file.*;
 /**
  Skeleton of a ContinuousIntegrationServer which acts as webhook
  See the Jetty documentation for API documentation of those classes.
@@ -41,5 +43,20 @@ public class ContinuousIntegrationServer extends AbstractHandler
         server.setHandler(new ContinuousIntegrationServer());
         server.start();
         server.join();
+    }
+
+    public static void clone(String repoUrl) {
+        Path p = Paths.get("./local");
+        try {
+            System.out.println("Cloning "+repoUrl+" into "+repoUrl);
+            Git.cloneRepository()
+                    .setURI(repoUrl)
+                    .setDirectory(p.toFile())
+                    .call();
+            System.out.println("Completed Cloning");
+        } catch (GitAPIException e) {
+            System.out.println("Exception occurred while cloning repo");
+            e.printStackTrace();
+        }
     }
 }

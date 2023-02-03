@@ -16,9 +16,22 @@ dependencies {
     // https://mvnrepository.com/artifact/org.eclipse.jetty/jetty-server
     implementation group: 'org.eclipse.jetty', name: 'jetty-server', version: '7.0.2.v20100331'
 
+    // https://central.sonatype.dev/artifact/org.eclipse.jgit/org.eclipse.jgit/
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.4.0.202211300538-r'
+    // SSH support for JGit based on Apache MINA sshd
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.ssh.apache:6.4.0.202211300538-r'
+    // GPG support for JGit based on BouncyCastle (commit signing)
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.gpg.bc:6.4.0.202211300538-r'
+
+    implementation 'org.slf4j:slf4j-simple:1.7.9'
+
 
     // https://mvnrepository.com/artifat/javax.servlet/javax.servlet-api
     compileOnly group: 'javax.servlet', name: 'javax.servlet-api', version: '3.0.1'
+
+    // https://mvnrepository.com/artifact/commons-io/commons-io
+    implementation group: 'commons-io', name: 'commons-io', version: '2.11.0'
+
 }
 
 test {
