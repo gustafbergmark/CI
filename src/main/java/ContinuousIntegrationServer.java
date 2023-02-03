@@ -3,6 +3,8 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+import org.json.*;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Request;
@@ -20,18 +22,32 @@ public class ContinuousIntegrationServer extends AbstractHandler
                        HttpServletResponse response)
             throws IOException, ServletException
     {
-        response.setContentType("text/html;charset=utf-8");
-        response.setStatus(HttpServletResponse.SC_OK);
-        baseRequest.setHandled(true);
+        // Get the HTTP method of the request, e.g. "GET" or "POST"
+        String method = request.getMethod();
 
-        System.out.println(target);
+        if (method.equals("GET")) {
+            response.setContentType("text/html;charset=utf-8");
+            response.setStatus(HttpServletResponse.SC_OK);
+            baseRequest.setHandled(true);
 
-        // here you do all the continuous integration tasks
-        // for example
-        // 1st clone your repository
-        // 2nd compile the code
+            System.out.println(target);
 
-        response.getWriter().println("CI job done");
+            response.getWriter().println("CI job done");
+        } else if (method.equals("POST")) {
+            // Read the payload from the webhook and convert it to a JSON object
+            String pl = request.getReader().lines().collect(Collectors.joining("\n"));
+            JSONObject payload = new JSONObject(pl);
+            // Get the specific git ref that triggered the webhook, for example: "refs/heads/main"
+            String ref = payload.getString("ref");
+            // Add code below to do the CI tasks
+
+            // Assume that this is needed here as well after everything is done
+            baseRequest.setHandled(true);
+
+        }
+        // Don't know if there will be any other HTTP methods than "GET" or "POST"
+        // The method is "GET" when running the server locally
+        // The method is "POST" when a webhook event occurs
     }
 
     // used to start the CI server in command line
