@@ -4,6 +4,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import org.apache.commons.io.FileUtils;
+
+
 class ContinuousIntegrationServerTest {
 
     @BeforeEach
@@ -34,4 +41,15 @@ class ContinuousIntegrationServerTest {
         boolean result = ci.checkTests("notAPath", "notAPath");
         assertFalse(result);
     }
+    void testClonePublic() {
+        String repoUrl = "https://github.com/gustafbergmark/CI.git";
+        ContinuousIntegrationServer.clone(repoUrl);
+        Path p = Paths.get("./local");
+        try {
+            FileUtils.deleteDirectory(p.toFile());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
