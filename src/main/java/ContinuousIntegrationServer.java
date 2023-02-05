@@ -40,32 +40,57 @@ public class ContinuousIntegrationServer extends AbstractHandler
         response.getWriter().println("CI job done");
     }
 
+    /**
+    * Run tests using Gradle Tooling API.
+    * @param projectPath: path to project repo to run CI on
+    * @param testDirPath: path to test folder
+    * @return boolean result. Returns true if all given tests pass, otherwise returns false.
+    * */
+    public boolean checkTests(String projectPath, String testDirPath) {
+        ProjectConnection connection;
+        try {
+            // Main entry point to the Gradle tooling API
+            GradleConnector connector = GradleConnector.newConnector();
+
+            File projectDir = new File(projectPath);
+            File testDir = new File(testDirPath);
+            File[] testFiles = testDir.listFiles();
+
+            // Connect gradle to project
+            connector.forProjectDirectory(projectDir);
+            connection = connector.connect();
+
+            TestLauncher launcher = connection.newTestLauncher();
+
+            if(testFiles != null) {  // Check that test files exists
+                for (File testFile : testFiles) {
+                    if (!testFile.getName().endsWith(".java")) {continue;} //Skip folders
+
+                    // Adds test file to launcher
+                    String fileName = testFile.getName().replaceFirst("[.][^.]+$", "");
+                    launcher = launcher.withJvmTestClasses(fileName);
+
+                    // Run all tests in given test file
+                    launcher.run();
+                }
+            } else {
+                System.out.println("No test files to run.");
+                return false;
+            }
+            connection.close();
+        } catch (TestExecutionException ex) {
+            System.out.println("Tests failed.");
+            ex.printStackTrace();
+            return false;
+        }
+        System.out.println("Tests passed.");
+        return true;
+    }
+
     // used to start the CI server in command line
     public static void main(String[] args) throws Exception
     {
         System.out.println("hello");
-        // Run tests
-        ProjectConnection connection;
-        try {
-            GradleConnector connector = GradleConnector.newConnector();
-            // TODO: change pathname to cloned project
-            File projectDir = new File("./");
-            connector.forProjectDirectory(projectDir);
-
-            connection = connector.connect();
-            TestLauncher launcher = connection.newTestLauncher();
-            // TODO: check all classes
-            launcher = launcher.withJvmTestClasses("ContinuousIntegrationServerTest");
-            launcher.run();
-        } catch (TestExecutionException ex) {
-            // Tests failed
-            // TODO: add appropriate handling of failure
-            ex.printStackTrace();
-        } catch(Exception ex) {
-            ex.printStackTrace();
-        }
-
-        // TODO: Gracefully disconnect when done
 
         Server server = new Server(8080);
         server.setHandler(new ContinuousIntegrationServer());
