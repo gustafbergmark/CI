@@ -41,6 +41,8 @@ class ContinuousIntegrationServerTest {
         boolean result = ci.checkTests("notAPath", "notAPath");
         assertFalse(result);
     }
+
+    @Test
     void testClonePublic() {
         String repoUrl = "https://github.com/gustafbergmark/CI.git";
         ContinuousIntegrationServer.clone(repoUrl);
