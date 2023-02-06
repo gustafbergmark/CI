@@ -2,8 +2,11 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
 
-import java.io.IOException;
-import java.io.File;
+import java.io.*;
+
+
+import org.apache.commons.io.FileUtils;
+import org.json.*;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Request;
@@ -16,19 +19,22 @@ import org.gradle.tooling.TestLauncher;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+
 import java.nio.file.*;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.Iterator;
+
 /**
- Skeleton of a ContinuousIntegrationServer which acts as webhook
- See the Jetty documentation for API documentation of those classes.
+ * Skeleton of a ContinuousIntegrationServer which acts as webhook
+ * See the Jetty documentation for API documentation of those classes.
  */
-public class ContinuousIntegrationServer extends AbstractHandler
-{
+public class ContinuousIntegrationServer extends AbstractHandler {
     public void handle(String target,
                        Request baseRequest,
                        HttpServletRequest request,
                        HttpServletResponse response)
-            throws IOException, ServletException
-    {
+            throws IOException, ServletException {
         response.setContentType("text/html;charset=utf-8");
         response.setStatus(HttpServletResponse.SC_OK);
         baseRequest.setHandled(true);
@@ -40,7 +46,63 @@ public class ContinuousIntegrationServer extends AbstractHandler
         // 1st clone your repository
         // 2nd compile the code
 
-        response.getWriter().println("CI job done");
+        // Simple code for viewing build history
+        File database = new File("./database/database.json");
+        if (target.equals("/builds.html")) {
+            getAllBuilds(database, response);
+        } else if (target.startsWith("/builds/")) {
+            printBuild(database, target.substring(8), response);
+        } else {
+            response.getWriter().println("Site doesnt exist");
+        }
+    }
+
+    /**
+     * Responds to requests to /builds.html, showing a list with links to all builds
+     * @param database which database to use
+     * @param response for outputting data to the client
+     */
+    public void getAllBuilds(File database, HttpServletResponse response) {
+        try {
+            String s = FileUtils.readFileToString(database);
+            JSONObject db = new JSONObject(s);
+            Iterator<String> keys = db.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                response.getWriter().println("<a href=\"builds/" + key + "\">" + key + "</a>");
+                response.getWriter().println(db.getJSONObject(key).get("commitID"));
+                response.getWriter().println("<br>");
+            }
+            response.getWriter().flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Responds to requests for specific builds
+     * @param database which database to use
+     * @param buildID which specific build to display
+     * @param response for outputting the data to the client
+     */
+    public void printBuild(File database, String buildID, HttpServletResponse response) {
+        try {
+            String s = FileUtils.readFileToString(database);
+            JSONObject db = new JSONObject(s);
+            try {
+                JSONObject res = db.getJSONObject(buildID);
+                response.getWriter().println("Timestamp: " + buildID + "<br>");
+                response.getWriter().println("CommitID: " + res.get("commitID") + "<br>");
+                response.getWriter().println("Build Log: " + res.get("log") + "<br>");
+            } catch (JSONException e) {
+                response.getWriter().println("Build does not exist");
+            }
+            response.getWriter().flush();
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     /**
@@ -88,6 +150,29 @@ public class ContinuousIntegrationServer extends AbstractHandler
         }
         System.out.println("Tests passed.");
         return true;
+    }
+
+    /**
+     * Saves the build information in a persistent database
+     *
+     * @param commitIdentifier
+     * @param buildLogs
+     */
+    public static void saveBuild(File database, String commitIdentifier, String buildLogs) {
+        try {
+            String s = FileUtils.readFileToString(database);
+            JSONObject db = new JSONObject(s);
+            JSONObject build = new JSONObject();
+            build.put("commitID", commitIdentifier);
+            build.put("log", buildLogs);
+            //build.append("timestamp", Timestamp.from(Instant.now()));
+            db.put(Timestamp.from(Instant.now()).toString(), build);
+            FileWriter writer = new FileWriter(database);
+            writer.write(db + "\n");
+            writer.flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // used to start the CI server in command line
