@@ -1,16 +1,23 @@
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.AbstractHandler;
-import org.eclipse.jgit.api.CloneCommand;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
-
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.ServletException;
+
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.File;
+
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.handler.AbstractHandler;
+
+import org.gradle.tooling.GradleConnector;
+import org.gradle.tooling.ProjectConnection;
+import org.gradle.tooling.TestExecutionException;
+import org.gradle.tooling.TestLauncher;
+
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.CloneCommand;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import java.nio.file.*;
 /**
  Skeleton of a ContinuousIntegrationServer which acts as webhook
  See the Jetty documentation for API documentation of those classes.
@@ -35,6 +42,53 @@ public class ContinuousIntegrationServer extends AbstractHandler
         // 2nd compile the code
 
         response.getWriter().println("CI job done");
+    }
+
+    /**
+    * Run tests using Gradle Tooling API.
+    * @param projectPath: path to project repo to run CI on
+    * @param testDirPath: path to test folder
+    * @return boolean result. Returns true if all given tests pass, otherwise returns false.
+    * */
+    public boolean checkTests(String projectPath, String testDirPath) {
+        ProjectConnection connection;
+        try {
+            // Main entry point to the Gradle tooling API
+            GradleConnector connector = GradleConnector.newConnector();
+
+            File projectDir = new File(projectPath);
+            File testDir = new File(testDirPath);
+            File[] testFiles = testDir.listFiles();
+
+            // Connect gradle to project
+            connector.forProjectDirectory(projectDir);
+            connection = connector.connect();
+
+            TestLauncher launcher = connection.newTestLauncher();
+
+            if(testFiles != null) {  // Check that test files exists
+                for (File testFile : testFiles) {
+                    if (!testFile.getName().endsWith(".java")) {continue;} //Skip folders
+
+                    // Adds test file to launcher
+                    String fileName = testFile.getName().replaceFirst("[.][^.]+$", "");
+                    launcher = launcher.withJvmTestClasses(fileName);
+
+                    // Run all tests in given test file
+                    launcher.run();
+                }
+            } else {
+                System.out.println("No test files to run.");
+                return false;
+            }
+            connection.close();
+        } catch (TestExecutionException ex) {
+            System.out.println("Tests failed.");
+            ex.printStackTrace();
+            return false;
+        }
+        System.out.println("Tests passed.");
+        return true;
     }
 
     // used to start the CI server in command line
