@@ -21,8 +21,12 @@ dependencies {
     implementation group: 'org.json', name: 'json', version: '20220924'
 
 
+    // https://mvnrepository.com/artifact/org.mockito/mockito-core
+    testImplementation group: 'org.mockito', name: 'mockito-core', version: '2.1.0'
+
+
     // https://mvnrepository.com/artifat/javax.servlet/javax.servlet-api
-    compileOnly group: 'javax.servlet', name: 'javax.servlet-api', version: '3.0.1'
+    implementation group: 'javax.servlet', name: 'javax.servlet-api', version: '3.0.1'
 }
 
 test {

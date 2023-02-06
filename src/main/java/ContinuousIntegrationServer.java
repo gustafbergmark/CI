@@ -32,7 +32,7 @@ public class ContinuousIntegrationServer extends AbstractHandler
 
             System.out.println(target);
 
-            response.getWriter().println("CI job done");
+            response.getWriter().print("CI job done");
         } else if (method.equals("POST")) {
             // Read the payload from the webhook and convert it to a JSON object
             String pl = request.getReader().lines().collect(Collectors.joining("\n"));
