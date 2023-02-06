@@ -15,6 +15,7 @@ import org.gradle.tooling.TestExecutionException;
 import org.gradle.tooling.TestLauncher;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import java.nio.file.*;
 /**
@@ -99,17 +100,30 @@ public class ContinuousIntegrationServer extends AbstractHandler
         server.join();
     }
 
-    public static void clone(String repoUrl) {
+    /**
+     * Inspiration for the cloning implementation was taken from https://onecompiler.com/posts/3sqk5x3td/how-to-clone-a-git-repository-programmatically-using-java,
+     * Dependencies for GitApi was added to the settings in order for this to work.
+     * This function clones a repo from an URL into a local folder on a specified branch.
+     * @param repoUrl
+     * @param branch
+     */
+    public static void clone(String repoUrl, String branch) {
         Path p = Paths.get("./local");
+
         try {
-            System.out.println("Cloning "+repoUrl+" into "+repoUrl);
-            Git.cloneRepository()
-                    .setURI(repoUrl)
-                    .setDirectory(p.toFile())
-                    .call();
-            System.out.println("Completed Cloning");
+            System.out.println("Cloning " + repoUrl + " into local folder" + " at branch " + branch);
+            CloneCommand gc = Git.cloneRepository().setURI(repoUrl).setDirectory(p.toFile());
+            // check if branch is in master, otherwise switch branch
+            if(branch == "master"){
+                gc.call();
+            }
+            else{
+                gc.setBranch(branch);
+                gc.call();
+            }
+            System.out.println("Completed cloning at branch " + branch);
         } catch (GitAPIException e) {
-            System.out.println("Exception occurred while cloning repo");
+            System.out.println("Exception occurred with GitAPI when cloning repo");
             e.printStackTrace();
         }
     }

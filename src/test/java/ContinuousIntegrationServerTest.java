@@ -45,7 +45,8 @@ class ContinuousIntegrationServerTest {
     @Test
     void testClonePublic() {
         String repoUrl = "https://github.com/gustafbergmark/CI.git";
-        ContinuousIntegrationServer.clone(repoUrl);
+        String branch = "master";
+        ContinuousIntegrationServer.clone(repoUrl, branch);
         Path p = Paths.get("./local");
         try {
             FileUtils.deleteDirectory(p.toFile());
@@ -53,5 +54,20 @@ class ContinuousIntegrationServerTest {
             e.printStackTrace();
         }
     }
+    @Test
+    void testClonePublicBranch() {
+        String repoUrl = "https://github.com/gustafbergmark/CI.git";
+        String branch = "2-implement-cloning-from-github";
+        ContinuousIntegrationServer.clone(repoUrl, branch);
+        Path p = Paths.get("./local");
+
+        try {
+            FileUtils.deleteDirectory(p.toFile());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
 }
