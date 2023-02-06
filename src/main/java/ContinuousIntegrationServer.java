@@ -4,8 +4,12 @@ import javax.servlet.ServletException;
 
 import java.io.IOException;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.stream.Collectors;
 import org.json.*;
+import java.util.Calendar;
 
 import java.io.File;
 
@@ -54,10 +58,51 @@ public class ContinuousIntegrationServer extends AbstractHandler
             String ref = payload.getString("ref");
             // Add code below to do the CI tasks
 
+            response.setStatus(200);
+
+            //1. Clone project
+            //2. Build project (?)
+            //3. Run tests
+
+            boolean passed = true;
+            String state = "";
+            if(passed) {
+                // Set state to success
+                state = "success";
+            } else {
+                // Set state to fail
+                state = "failure";
+            }
+
+            Date date = Calendar.getInstance().getTime();
+            DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
+            String strDate = dateFormat.format(date);
+
+            //JSONObject repo = new JSONObject(payload.get("repository"));
+            //String url = repo.getString("full_name");
+
+            JSONObject responsePayload = new JSONObject();
+            responsePayload
+                    .append("url", "url")
+                    .append("state", state)
+                    .append("target_url", "target_url")
+                    .append("created_at", strDate);
+
             // Assume that this is needed here as well after everything is done
             baseRequest.setHandled(true);
 
+            //
+            /*
+            * {
+                "url": "https://github.com/gustafbergmark/CI.git/",
+                "state": "success",  "failure"
+                "target_url": "https://ci.example.com/1000/output",
+                "created_at": "2012-07-20T01:19:13Z"
+            *
+            * */
         }
+
+
         // Don't know if there will be any other HTTP methods than "GET" or "POST"
         // The method is "GET" when running the server locally
         // The method is "POST" when a webhook event occurs
