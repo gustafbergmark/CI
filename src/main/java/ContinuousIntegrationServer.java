@@ -34,8 +34,7 @@ public class ContinuousIntegrationServer extends AbstractHandler {
                        Request baseRequest,
                        HttpServletRequest request,
                        HttpServletResponse response)
-            throws IOException, ServletException
-    {
+            throws IOException, ServletException {
         // Get the HTTP method of the request, e.g. "GET" or "POST"
         String method = request.getMethod();
 
@@ -59,14 +58,15 @@ public class ContinuousIntegrationServer extends AbstractHandler {
             // Assume that this is needed here as well after everything is done
             baseRequest.setHandled(true);
 
-        // Simple code for viewing build history
-        File database = new File("./database/database.json");
-        if (target.equals("/builds.html")) {
-            getAllBuilds(database, response);
-        } else if (target.startsWith("/builds/")) {
-            printBuild(database, target.substring(8), response);
-        } else {
-            response.getWriter().println("Site doesnt exist");
+            // Simple code for viewing build history
+            File database = new File("./database/database.json");
+            if (target.equals("/builds.html")) {
+                getAllBuilds(database, response);
+            } else if (target.startsWith("/builds/")) {
+                printBuild(database, target.substring(8), response);
+            } else {
+                response.getWriter().println("Site doesnt exist");
+            }
         }
     }
 
