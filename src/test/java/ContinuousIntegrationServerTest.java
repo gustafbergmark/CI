@@ -2,9 +2,10 @@ import org.gradle.tooling.TestExecutionException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -12,6 +13,7 @@ import org.apache.commons.io.FileUtils;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
 import org.eclipse.jetty.server.Request;
 import org.mockito.Mockito;
 
@@ -99,7 +101,53 @@ class ContinuousIntegrationServerTest {
         }
     }
 
+    @Test
+    void testSaveBuild() {
+        String commitID = "abc124";
+        String log = "Build Successful";
+        File database = new File("./database/testsave.json");
+        FileWriter writer = null;
+        try {
+            // Create empty database
+            writer = new FileWriter(database);
+            writer.write("{}");
+            writer.close();
 
+            ContinuousIntegrationServer.saveBuild(database, commitID, log);
 
+            // Delete database
+            FileUtils.delete(database);
 
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testGetAllBuilds() {
+        ContinuousIntegrationServer server = new ContinuousIntegrationServer();
+        File database = new File("./database/databasetest.json");
+        HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
+        PrintWriter writer = new PrintWriter(OutputStream.nullOutputStream());
+        try {
+            Mockito.when(response.getWriter()).thenReturn(writer);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        server.getAllBuilds(database, response);
+    }
+
+    @Test
+    void testPrintBuild() {
+        ContinuousIntegrationServer server = new ContinuousIntegrationServer();
+        File database = new File("./database/databasetest.json");
+        HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
+        PrintWriter writer = new PrintWriter(OutputStream.nullOutputStream());
+        try {
+            Mockito.when(response.getWriter()).thenReturn(writer);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        server.printBuild(database, "2023-02-06 14:20:24.596290068", response);
+    }
 }
