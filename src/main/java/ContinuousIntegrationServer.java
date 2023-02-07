@@ -45,8 +45,15 @@ public class ContinuousIntegrationServer extends AbstractHandler {
 
             System.out.println(target);
 
-
-            response.getWriter().print("CI job done");
+            // Simple code for viewing build history
+            File database = new File("./database/database.json");
+            if (target.equals("/builds.html")) {
+                getAllBuilds(database, response);
+            } else if (target.startsWith("/builds/")) {
+                printBuild(database, target.substring(8), response);
+            } else {
+                response.getWriter().println("Site doesnt exist");
+            }
         } else if (method.equals("POST")) {
             // Read the payload from the webhook and convert it to a JSON object
             String pl = request.getReader().lines().collect(Collectors.joining("\n"));
@@ -57,16 +64,6 @@ public class ContinuousIntegrationServer extends AbstractHandler {
 
             // Assume that this is needed here as well after everything is done
             baseRequest.setHandled(true);
-
-            // Simple code for viewing build history
-            File database = new File("./database/database.json");
-            if (target.equals("/builds.html")) {
-                getAllBuilds(database, response);
-            } else if (target.startsWith("/builds/")) {
-                printBuild(database, target.substring(8), response);
-            } else {
-                response.getWriter().println("Site doesnt exist");
-            }
         }
     }
 
