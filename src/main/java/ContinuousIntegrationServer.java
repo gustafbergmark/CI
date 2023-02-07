@@ -3,8 +3,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
 
 import java.io.*;
-
-
+import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.json.*;
 
@@ -18,6 +17,7 @@ import org.gradle.tooling.TestExecutionException;
 import org.gradle.tooling.TestLauncher;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 
 import java.nio.file.*;
@@ -34,17 +34,30 @@ public class ContinuousIntegrationServer extends AbstractHandler {
                        Request baseRequest,
                        HttpServletRequest request,
                        HttpServletResponse response)
-            throws IOException, ServletException {
-        response.setContentType("text/html;charset=utf-8");
-        response.setStatus(HttpServletResponse.SC_OK);
-        baseRequest.setHandled(true);
+            throws IOException, ServletException
+    {
+        // Get the HTTP method of the request, e.g. "GET" or "POST"
+        String method = request.getMethod();
 
-        System.out.println(target);
+        if (method.equals("GET")) {
+            response.setContentType("text/html;charset=utf-8");
+            response.setStatus(HttpServletResponse.SC_OK);
+            baseRequest.setHandled(true);
 
-        // here you do all the continuous integration tasks
-        // for example
-        // 1st clone your repository
-        // 2nd compile the code
+            System.out.println(target);
+
+
+            response.getWriter().print("CI job done");
+        } else if (method.equals("POST")) {
+            // Read the payload from the webhook and convert it to a JSON object
+            String pl = request.getReader().lines().collect(Collectors.joining("\n"));
+            JSONObject payload = new JSONObject(pl);
+            // Get the specific git ref that triggered the webhook, for example: "refs/heads/main"
+            String ref = payload.getString("ref");
+            // Add code below to do the CI tasks
+
+            // Assume that this is needed here as well after everything is done
+            baseRequest.setHandled(true);
 
         // Simple code for viewing build history
         File database = new File("./database/database.json");
@@ -102,7 +115,6 @@ public class ContinuousIntegrationServer extends AbstractHandler {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
     }
 
     /**
@@ -184,17 +196,30 @@ public class ContinuousIntegrationServer extends AbstractHandler {
         server.join();
     }
 
-    public static void clone(String repoUrl) {
+    /**
+     * Inspiration for the cloning implementation was taken from https://onecompiler.com/posts/3sqk5x3td/how-to-clone-a-git-repository-programmatically-using-java,
+     * Dependencies for GitApi was added to the settings in order for this to work.
+     * This function clones a repo from an URL into a local folder on a specified branch.
+     * @param repoUrl
+     * @param branch
+     */
+    public static void clone(String repoUrl, String branch) {
         Path p = Paths.get("./local");
+
         try {
-            System.out.println("Cloning "+repoUrl+" into "+repoUrl);
-            Git.cloneRepository()
-                    .setURI(repoUrl)
-                    .setDirectory(p.toFile())
-                    .call();
-            System.out.println("Completed Cloning");
+            System.out.println("Cloning " + repoUrl + " into local folder" + " at branch " + branch);
+            CloneCommand gc = Git.cloneRepository().setURI(repoUrl).setDirectory(p.toFile());
+            // check if branch is in master, otherwise switch branch
+            if(branch == "master"){
+                gc.call();
+            }
+            else{
+                gc.setBranch(branch);
+                gc.call();
+            }
+            System.out.println("Completed cloning at branch " + branch);
         } catch (GitAPIException e) {
-            System.out.println("Exception occurred while cloning repo");
+            System.out.println("Exception occurred with GitAPI when cloning repo");
             e.printStackTrace();
         }
     }
