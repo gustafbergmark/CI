@@ -34,6 +34,13 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Iterator;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.HttpClientBuilder;
+
 /**
  * Skeleton of a ContinuousIntegrationServer which acts as webhook
  * See the Jetty documentation for API documentation of those classes.
@@ -57,6 +64,8 @@ public class ContinuousIntegrationServer extends AbstractHandler {
                        HttpServletResponse response)
             throws IOException {
         // Get the HTTP method of the request, e.g. "GET" or "POST"
+        // The method is "GET" when running the server locally
+        // The method is "POST" when a webhook event occurs
         String method = request.getMethod();
         if (method.equals("GET")) {
             response.setContentType("text/html;charset=utf-8");
@@ -80,37 +89,7 @@ public class ContinuousIntegrationServer extends AbstractHandler {
             JSONObject payload = new JSONObject(pl);
 
             // Add code below to do the CI tasks
-            performCI(payload);
-
-            response.setStatus(200);
-
-            //1. Clone project
-            //2. Build project (?)
-            //3. Run tests
-
-            boolean passed = true;
-            String state = "";
-            if(passed) {
-                // Set state to success
-                state = "success";
-            } else {
-                // Set state to fail
-                state = "failure";
-            }
-
-            Date date = Calendar.getInstance().getTime();
-            DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
-            String strDate = dateFormat.format(date);
-
-            //JSONObject repo = new JSONObject(payload.get("repository"));
-            //String url = repo.getString("full_name");
-
-            JSONObject responsePayload = new JSONObject();
-            responsePayload
-                    .append("url", "url")
-                    .append("state", state)
-                    .append("target_url", "target_url")
-                    .append("created_at", strDate);
+            performCI(payload, response);
 
             // Assume that this is needed here as well after everything is done
             baseRequest.setHandled(true);
@@ -120,8 +99,9 @@ public class ContinuousIntegrationServer extends AbstractHandler {
     /**
      * Performs the CI
      * @param payload the payload from the HTTP request
+     * @param response, the response of request
      */
-    public void performCI(JSONObject payload) {
+    public void performCI(JSONObject payload, HttpServletResponse response) throws IOException {
         System.out.println(payload);
         // Clone repo
         // Get the specific git ref that triggered the webhook, for example: "refs/heads/main"
@@ -132,15 +112,6 @@ public class ContinuousIntegrationServer extends AbstractHandler {
         String clone_url = repo.getString("clone_url");
         clone(clone_url, branch);
 
-            //
-            /*
-            * {
-                "url": "https://github.com/gustafbergmark/CI.git/",
-                "state": "success",  "failure"
-                "target_url": "https://ci.example.com/1000/output",
-                "created_at": "2012-07-20T01:19:13Z"
-            *
-            * */
         // Perform testing
         String buildlogs = checkTests("./local");
         boolean success = buildlogs.contains("BUILD SUCCESSFUL");
@@ -149,9 +120,43 @@ public class ContinuousIntegrationServer extends AbstractHandler {
         File database = new File("./database/database.json");
         JSONObject head_commit = payload.getJSONObject("head_commit");
         String commitID = head_commit.getString("id");
-        saveBuild(database, commitID, buildlogs);
+        String url = saveBuild(database, commitID, buildlogs);
 
-        // Respond with REST api
+        // Respond with commit status
+        response.setStatus(200);
+        String state = success ? "success" : "failure";
+
+        Date date = Calendar.getInstance().getTime();
+        DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
+        String strDate = dateFormat.format(date);
+
+        String owner = repo.getJSONObject("owner").getString("login");
+        String reponame = repo.getString("name");
+        String sha = payload.getString("after");
+
+        JSONObject responsePayload = new JSONObject();
+        responsePayload
+                .append("repo", reponame)
+                .append("sha", sha)
+                .append("state", state)
+                .append("target_url", url)
+                .append("owner", owner);
+
+        String postUrl = "https://api.github.com/repos/"+ owner + "/" + reponame + "/statuses/" + sha;
+
+        System.out.println("postUrl: " + postUrl);
+
+        HttpClient httpClient = HttpClientBuilder.create().build();
+        HttpPost post = new HttpPost(postUrl);
+        StringEntity postingString = new StringEntity(responsePayload.toString());
+        post.setEntity(postingString);
+        post.setHeader("Content-type", "application/json");
+        HttpResponse restapiresponse = httpClient.execute(post);
+
+        System.out.println("REST api post request response: " + restapiresponse.toString());
+
+        //response.getWriter().println(responsePayload);
+        //response.getWriter().flush();
     }
 
     /**
@@ -175,10 +180,6 @@ public class ContinuousIntegrationServer extends AbstractHandler {
             throw new RuntimeException(e);
         }
 
-
-        // Don't know if there will be any other HTTP methods than "GET" or "POST"
-        // The method is "GET" when running the server locally
-        // The method is "POST" when a webhook event occurs
     }
 
     /**
@@ -241,8 +242,10 @@ public class ContinuousIntegrationServer extends AbstractHandler {
      * Saves the build information in a persistent database
      * @param commitIdentifier the ID of the commit
      * @param buildLogs Gradle build logs
+     * @return url to build
      */
-    public static void saveBuild(File database, String commitIdentifier, String buildLogs) {
+    public static String saveBuild(File database, String commitIdentifier, String buildLogs) {
+        String url = "http://188.150.30.242:8090/builds/";
         try {
             String s = FileUtils.readFileToString(database);
             JSONObject db = new JSONObject(s);
@@ -250,13 +253,16 @@ public class ContinuousIntegrationServer extends AbstractHandler {
             build.put("commitID", commitIdentifier);
             build.put("log", buildLogs);
             //build.append("timestamp", Timestamp.from(Instant.now()));
-            db.put(Timestamp.from(Instant.now()).toString(), build);
+            String ID = Timestamp.from(Instant.now()).toString();
+            db.put(ID, build);
+            url += ID;
             FileWriter writer = new FileWriter(database);
             writer.write(db + "\n");
             writer.flush();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        return url;
     }
 
     /**
