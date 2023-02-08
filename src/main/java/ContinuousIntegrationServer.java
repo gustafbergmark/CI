@@ -3,19 +3,16 @@ import javax.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
+import org.apache.http.HttpHeaders;
 import org.eclipse.jetty.server.HttpConnection;
 import org.eclipse.jetty.server.Response;
 import org.gradle.tooling.*;
 import org.json.*;
-import java.util.Calendar;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Request;
@@ -24,7 +21,6 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.gradle.tooling.GradleConnector;
 import org.gradle.tooling.ProjectConnection;
 import org.gradle.tooling.TestExecutionException;
-import org.gradle.tooling.TestLauncher;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.CloneCommand;
@@ -34,7 +30,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Iterator;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
@@ -89,7 +84,8 @@ public class ContinuousIntegrationServer extends AbstractHandler {
             JSONObject payload = new JSONObject(pl);
 
             // Add code below to do the CI tasks
-            performCI(payload, response);
+            File database = new File("./database/database.json");
+            performCI(payload, response,database);
 
             // Assume that this is needed here as well after everything is done
             baseRequest.setHandled(true);
@@ -101,7 +97,7 @@ public class ContinuousIntegrationServer extends AbstractHandler {
      * @param payload the payload from the HTTP request
      * @param response, the response of request
      */
-    public void performCI(JSONObject payload, HttpServletResponse response) throws IOException {
+    public void performCI(JSONObject payload, HttpServletResponse response, File database) throws IOException {
         System.out.println(payload);
         // Clone repo
         // Get the specific git ref that triggered the webhook, for example: "refs/heads/main"
@@ -114,10 +110,10 @@ public class ContinuousIntegrationServer extends AbstractHandler {
 
         // Perform testing
         String buildlogs = checkTests("./local");
+        buildlogs = buildlogs.replace("\n", "<br>");
         boolean success = buildlogs.contains("BUILD SUCCESSFUL");
 
         // Save result
-        File database = new File("./database/database.json");
         JSONObject head_commit = payload.getJSONObject("head_commit");
         String commitID = head_commit.getString("id");
         String url = saveBuild(database, commitID, buildlogs);
@@ -125,22 +121,14 @@ public class ContinuousIntegrationServer extends AbstractHandler {
         // Respond with commit status
         response.setStatus(200);
         String state = success ? "success" : "failure";
-
-        Date date = Calendar.getInstance().getTime();
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd hh:mm:ss");
-        String strDate = dateFormat.format(date);
-
         String owner = repo.getJSONObject("owner").getString("login");
         String reponame = repo.getString("name");
         String sha = payload.getString("after");
 
         JSONObject responsePayload = new JSONObject();
         responsePayload
-                .append("repo", reponame)
-                .append("sha", sha)
-                .append("state", state)
-                .append("target_url", url)
-                .append("owner", owner);
+                .put("state", state)
+                .put("target_url", url);
 
         String postUrl = "https://api.github.com/repos/"+ owner + "/" + reponame + "/statuses/" + sha;
 
@@ -150,13 +138,23 @@ public class ContinuousIntegrationServer extends AbstractHandler {
         HttpPost post = new HttpPost(postUrl);
         StringEntity postingString = new StringEntity(responsePayload.toString());
         post.setEntity(postingString);
-        post.setHeader("Content-type", "application/json");
+        post.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+        post.setHeader(HttpHeaders.ACCEPT, "application/vnd.github+json");
+
+        // Read oauth token from file
+        String oauth = FileUtils.readFileToString(new File("oauthtoken.secret"));
+        post.setHeader(HttpHeaders.AUTHORIZATION, "Bearer " + oauth);
+        post.setHeader("X-GitHub-Api-Version", "2022-11-28");
         HttpResponse restapiresponse = httpClient.execute(post);
 
         System.out.println("REST api post request response: " + restapiresponse.toString());
 
-        //response.getWriter().println(responsePayload);
-        //response.getWriter().flush();
+        Path p = Paths.get("./local");
+        try {
+            FileUtils.deleteDirectory(p.toFile());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -196,7 +194,7 @@ public class ContinuousIntegrationServer extends AbstractHandler {
                 JSONObject res = db.getJSONObject(buildID);
                 response.getWriter().println("Timestamp: " + buildID + "<br>");
                 response.getWriter().println("CommitID: " + res.get("commitID") + "<br>");
-                response.getWriter().println("Build Log: " + res.get("log") + "<br>");
+                response.getWriter().println("Build Log: <br>" + res.get("log") + "<br>");
             } catch (JSONException e) {
                 response.getWriter().println("Build does not exist");
             }
