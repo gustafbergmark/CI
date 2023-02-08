@@ -1,6 +1,6 @@
 The smallest Java Continuous Integration server for Github
 ===========================================================
-Test1
+Test2
 
 Here is a tiny CI server skeleton implemented in Java for educational purposes. It is meant to be called as webhook by Github. The HTTP part of it is based on Jetty.
 
