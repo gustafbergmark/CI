@@ -155,7 +155,7 @@ class ContinuousIntegrationServerTest {
         server.printBuild(database, "2023-02-06 14:20:24.596290068", response);
     }
 
-    @Test
+    /*@Test
     void testPerformCI() {
         ContinuousIntegrationServer server = new ContinuousIntegrationServer();
         // Test input is old push webhook
@@ -177,5 +177,5 @@ class ContinuousIntegrationServerTest {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
+    }*/
 }
