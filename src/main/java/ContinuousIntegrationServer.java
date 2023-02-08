@@ -1,10 +1,17 @@
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.ServletException;
+
+import java.io.IOException;
 
 import java.io.*;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
+import org.apache.http.HttpHeaders;
+import org.eclipse.jetty.server.HttpConnection;
+import org.eclipse.jetty.server.Response;
+import org.gradle.tooling.*;
 import org.json.*;
 
 import org.eclipse.jetty.server.Server;
@@ -14,30 +21,47 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.gradle.tooling.GradleConnector;
 import org.gradle.tooling.ProjectConnection;
 import org.gradle.tooling.TestExecutionException;
-import org.gradle.tooling.TestLauncher;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
-
 import java.nio.file.*;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Iterator;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.HttpClientBuilder;
 
 /**
  * Skeleton of a ContinuousIntegrationServer which acts as webhook
  * See the Jetty documentation for API documentation of those classes.
  */
 public class ContinuousIntegrationServer extends AbstractHandler {
+    /**
+     * Handles incoming requests to server
+     * @param target The target of the request - either a URI or a name.
+     * @param baseRequest The original unwrapped request object.
+     * @param request The request either as the {@link Request}
+     * object or a wrapper of that request. The {@link HttpConnection#getCurrentConnection()}
+     * method can be used access the Request object if required.
+     * @param response The response as the {@link Response}
+     * object or a wrapper of that request. The {@link HttpConnection#getCurrentConnection()}
+     * method can be used access the Response object if required.
+     * @throws IOException
+     */
     public void handle(String target,
                        Request baseRequest,
                        HttpServletRequest request,
                        HttpServletResponse response)
-            throws IOException, ServletException {
+            throws IOException {
         // Get the HTTP method of the request, e.g. "GET" or "POST"
+        // The method is "GET" when running the server locally
+        // The method is "POST" when a webhook event occurs
         String method = request.getMethod();
-
         if (method.equals("GET")) {
             response.setContentType("text/html;charset=utf-8");
             response.setStatus(HttpServletResponse.SC_OK);
@@ -52,18 +76,84 @@ public class ContinuousIntegrationServer extends AbstractHandler {
             } else if (target.startsWith("/builds/")) {
                 printBuild(database, target.substring(8), response);
             } else {
-                response.getWriter().println("Site doesnt exist");
+                response.getWriter().print("Site doesnt exist");
             }
         } else if (method.equals("POST")) {
             // Read the payload from the webhook and convert it to a JSON object
             String pl = request.getReader().lines().collect(Collectors.joining("\n"));
             JSONObject payload = new JSONObject(pl);
-            // Get the specific git ref that triggered the webhook, for example: "refs/heads/main"
-            String ref = payload.getString("ref");
+
             // Add code below to do the CI tasks
+            File database = new File("./database/database.json");
+            performCI(payload, response,database);
 
             // Assume that this is needed here as well after everything is done
             baseRequest.setHandled(true);
+        }
+    }
+
+    /**
+     * Performs the CI
+     * @param payload the payload from the HTTP request
+     * @param response, the response of request
+     */
+    public void performCI(JSONObject payload, HttpServletResponse response, File database) throws IOException {
+        System.out.println(payload);
+        // Clone repo
+        // Get the specific git ref that triggered the webhook, for example: "refs/heads/main"
+        String ref = payload.getString("ref");
+        String[] refList = ref.split("/");
+        String branch = refList[refList.length-1];
+        JSONObject repo = payload.getJSONObject("repository");
+        String clone_url = repo.getString("clone_url");
+        clone(clone_url, branch);
+
+        // Perform testing
+        String buildlogs = checkTests("./local");
+        buildlogs = buildlogs.replace("\n", "<br>");
+        boolean success = buildlogs.contains("BUILD SUCCESSFUL");
+
+        // Save result
+        JSONObject head_commit = payload.getJSONObject("head_commit");
+        String commitID = head_commit.getString("id");
+        String url = saveBuild(database, commitID, buildlogs);
+
+        // Respond with commit status
+        response.setStatus(200);
+        String state = success ? "success" : "failure";
+        String owner = repo.getJSONObject("owner").getString("login");
+        String reponame = repo.getString("name");
+        String sha = payload.getString("after");
+
+        JSONObject responsePayload = new JSONObject();
+        responsePayload
+                .put("state", state)
+                .put("target_url", url);
+
+        String postUrl = "https://api.github.com/repos/"+ owner + "/" + reponame + "/statuses/" + sha;
+
+        System.out.println("postUrl: " + postUrl);
+
+        HttpClient httpClient = HttpClientBuilder.create().build();
+        HttpPost post = new HttpPost(postUrl);
+        StringEntity postingString = new StringEntity(responsePayload.toString());
+        post.setEntity(postingString);
+        post.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+        post.setHeader(HttpHeaders.ACCEPT, "application/vnd.github+json");
+
+        // Read oauth token from file
+        String oauth = FileUtils.readFileToString(new File("oauthtoken.secret"));
+        post.setHeader(HttpHeaders.AUTHORIZATION, "Bearer " + oauth);
+        post.setHeader("X-GitHub-Api-Version", "2022-11-28");
+        HttpResponse restapiresponse = httpClient.execute(post);
+
+        System.out.println("REST api post request response: " + restapiresponse.toString());
+
+        Path p = Paths.get("./local");
+        try {
+            FileUtils.deleteDirectory(p.toFile());
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -87,6 +177,7 @@ public class ContinuousIntegrationServer extends AbstractHandler {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
     }
 
     /**
@@ -103,7 +194,7 @@ public class ContinuousIntegrationServer extends AbstractHandler {
                 JSONObject res = db.getJSONObject(buildID);
                 response.getWriter().println("Timestamp: " + buildID + "<br>");
                 response.getWriter().println("CommitID: " + res.get("commitID") + "<br>");
-                response.getWriter().println("Build Log: " + res.get("log") + "<br>");
+                response.getWriter().println("Build Log: <br>" + res.get("log") + "<br>");
             } catch (JSONException e) {
                 response.getWriter().println("Build does not exist");
             }
@@ -117,57 +208,42 @@ public class ContinuousIntegrationServer extends AbstractHandler {
     /**
     * Run tests using Gradle Tooling API.
     * @param projectPath: path to project repo to run CI on
-    * @param testDirPath: path to test folder
-    * @return boolean result. Returns true if all given tests pass, otherwise returns false.
+    * @return String build result. Will contain "BUILD SUCCESSFUL" if successful build with passed tests.
     * */
-    public boolean checkTests(String projectPath, String testDirPath) {
+    public String checkTests(String projectPath) {
         ProjectConnection connection;
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
         try {
             // Main entry point to the Gradle tooling API
-            GradleConnector connector = GradleConnector.newConnector();
-
+            GradleConnector connector = GradleConnector.newConnector().useDistribution(new URI("https://services.gradle.org/distributions/gradle-7.5.1-bin.zip"));
             File projectDir = new File(projectPath);
-            File testDir = new File(testDirPath);
-            File[] testFiles = testDir.listFiles();
-
             // Connect gradle to project
             connector.forProjectDirectory(projectDir);
             connection = connector.connect();
-
-            TestLauncher launcher = connection.newTestLauncher();
-
-            if(testFiles != null) {  // Check that test files exists
-                for (File testFile : testFiles) {
-                    if (!testFile.getName().endsWith(".java")) {continue;} //Skip folders
-
-                    // Adds test file to launcher
-                    String fileName = testFile.getName().replaceFirst("[.][^.]+$", "");
-                    launcher = launcher.withJvmTestClasses(fileName);
-
-                    // Run all tests in given test file
-                    launcher.run();
-                }
-            } else {
-                System.out.println("No test files to run.");
-                return false;
-            }
+            BuildLauncher build = connection.newBuild();
+            build.forTasks("test");
+            build.setStandardOutput(output);
+            build.run();
             connection.close();
         } catch (TestExecutionException ex) {
-            System.out.println("Tests failed.");
-            ex.printStackTrace();
-            return false;
+            System.out.println("WARNING: Tests failed.");
+        } catch (BuildException ex) {
+            System.out.println("WARNING: Build failed.");
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
-        System.out.println("Tests passed.");
-        return true;
+        String result = new String(output.toByteArray());
+        return  result;
     }
 
     /**
      * Saves the build information in a persistent database
-     *
-     * @param commitIdentifier
-     * @param buildLogs
+     * @param commitIdentifier the ID of the commit
+     * @param buildLogs Gradle build logs
+     * @return url to build
      */
-    public static void saveBuild(File database, String commitIdentifier, String buildLogs) {
+    public static String saveBuild(File database, String commitIdentifier, String buildLogs) {
+        String url = "http://188.150.30.242:8090/builds/";
         try {
             String s = FileUtils.readFileToString(database);
             JSONObject db = new JSONObject(s);
@@ -175,16 +251,23 @@ public class ContinuousIntegrationServer extends AbstractHandler {
             build.put("commitID", commitIdentifier);
             build.put("log", buildLogs);
             //build.append("timestamp", Timestamp.from(Instant.now()));
-            db.put(Timestamp.from(Instant.now()).toString(), build);
+            String ID = Timestamp.from(Instant.now()).toString();
+            db.put(ID, build);
+            url += ID;
             FileWriter writer = new FileWriter(database);
             writer.write(db + "\n");
             writer.flush();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        return url;
     }
 
-    // used to start the CI server in command line
+    /**
+     * Starts CI server
+     * @param args
+     * @throws Exception
+     */
     public static void main(String[] args) throws Exception
     {
         Server server = new Server(8080);
@@ -196,7 +279,7 @@ public class ContinuousIntegrationServer extends AbstractHandler {
     /**
      * Inspiration for the cloning implementation was taken from https://onecompiler.com/posts/3sqk5x3td/how-to-clone-a-git-repository-programmatically-using-java,
      * Dependencies for GitApi was added to the settings in order for this to work.
-     * This function clones a repo from an URL into a local folder on a specified branch.
+     * This function clones a repo from a URL into a local folder on a specified branch.
      * @param repoUrl
      * @param branch
      */
