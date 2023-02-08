@@ -1,68 +1,92 @@
-The smallest Java Continuous Integration server for Github
-===========================================================
+# CI server
+Here is a CI server that supports continuous integration for Gradle projects. 
+At each push to the project repo, the server is called as a webhook by Github. 
+Then the server builds the project, runs all tests and sets the commit status.
 
-Here is a tiny CI server skeleton implemented in Java for educational purposes. It is meant to be called as webhook by Github. The HTTP part of it is based on Jetty.
+## Dependencies and versions
+The CI server can only be used by Gradle Java projects, specifically `gradle-7.5.1` using JUnit5.
+Make sure to include the following dependencies in `build.gradle`.
 
-We assume here that you have a standard Linux machine (eg with Ubuntu), with Java installed.
+`
+implementation 'org.junit.jupiter:junit-jupiter:5.8.1'
+testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
+testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+`
 
-We first checkout this repository:
+## Run server locally
+Store the access token in file oauthtoken.secret. The access token should be stored in plain text without quotes.
+The token must have access to the repo:status scope.
+
+To build and test the server locally, clone this repository.
+**Intellij**: 
+1. reload build.gradle
+2. to run all tests run `test` in `build.gradle`
+3. run main program in `ContinuousIntegrationServerTest.java`.
+
+**command line**
+1. run `./gradlew build` to build project and run all tests
+2. run `./gradlew run` to launch server
+
+## Webhooks and connecting project to CI
+In order for the project to use the CI, check the [documentation](https://docs.github.com/en/developers/webhooks-and-events/webhooks/about-webhooks).
+Add `http://188.150.30.242:8090/` in the `Payload URL` field, only select `push` events. 
+
+## Retrieve older builds
+To retrieve older builds, browse the link http://188.150.30.242:8090/builds.html, which will show a list with links to all older 
+builds. There you can choose to click on the link to a specific build to get more information. To implement this we
+have a database in JSON format in the "database" directory where all the build history is saved. Once a new build is 
+made the build history is updated.
+
+## Build and test execution
+The compilation and test execution was implemented through using [Gradle Tooling API](https://docs.gradle.org/current/javadoc/org/gradle/tooling/package-summary.html).
+The `BuildLauncher` builds the projects and runs specified tasks, defined in `build.gradle`.
+For the CI server to be able to run all tests, the project should include the following in `build.gradle`.
+This functionality has been tested by cloning a dummy repo with 2 separate branches.
+One branch contains true tests, and one branch contains failed tests.
+
+
 ```
-git clone https://github.com/monperrus/smallest-java-ci
-cd smallest-java-ci
+test {
+    useJUnitPlatform()
+}
 ```
 
-We then download the required dependencies:
-```
-JETTY_VERSION=7.0.2.v20100331
-wget -U none https://repo1.maven.org/maven2/org/eclipse/jetty/aggregate/jetty-all/$JETTY_VERSION/jetty-all-$JETTY_VERSION.jar
-wget -U none https://repo1.maven.org/maven2/javax/servlet/servlet-api/2.5/servlet-api-2.5.jar
-#For linux users: 
-curl -LO --tlsv1 https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-unzip ngrok-stable-linux-amd64.zip 
-#For Mac user:
-curl -LO --tlsv1 https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-darwin-386.zip
-unzip ngrok-stable-darwin-386.zip
-```
+## Assessment branch
+The branch *assessment* was created to test if the CI server is working correctly.  
 
-We compile the skeleton the continuous integration server:
-```
-javac -cp servlet-api-2.5.jar:jetty-all-$JETTY_VERSION.jar ContinuousIntegrationServer.java
-```
+## Notification of build status
+Server sets the commit status as per this [documentation](https://docs.github.com/en/rest/commits/statuses?apiVersion=2022-11-28#create-a-commit-status).
+The POST request sent to set the status must include a header containing an authorization token, generated in GitHub.
 
-We run the server on the machine, and we may make it visible on the Internet thanks to [Ngrok](https://ngrok.com/):
-```
-# open a first terminal window
-JETTY_VERSION=7.0.2.v20100331
-java -cp .:servlet-api-2.5.jar:jetty-all-$JETTY_VERSION.jar ContinuousIntegrationServer
+**NOTE: Make sure to enable permission for the token to set commit statuses.**
 
-# open a second terminal window
-# this gives you the public URL of your CI server to set in Github
-# copy-paste the forwarding URL "Forwarding                    http://8929b010.ngrok.io -> localhost:8080"
-# note that this url is short-lived, and is reset everytime you run ngrok
-./ngrok http 8080
+## Contributions
+### Glacier Ali
+- Implement CI server running tests in project, in collaboration with Frida Grönberg.
+- Commit status, in collaboration with the rest of the team.
+- Put everything together, in collaboration with everyone else.
 
-```
+### Frida Grönberg
+- Implement CI server running tests in project, in collaboration with Glacier Ali.
+- Commit status, in collaboration with the rest of the team.
+- Put everything together, in collaboration with everyone else.
 
-We configure our Github repository:
+### Adam Jama
+- Clone repository function, in collaboration with Gustaf Bergmark.
+- Commit status, in collaboration with the rest of the team.
+- Put everything together, in collaboration with everyone else.
 
-* go to `Settings >> Webhooks`, click on `Add webhook`.
-* paste the forwarding URL (eg `http://8929b010.ngrok.io`) in field `Payload URL`) and send click on `Add webhook`. In the simplest setting, nothing more is required.
+### Gustaf Bergmark
+- Clone repository function, in collaboration with Adam Jama.
+- Retrieve older builds in collaboration with Carl Peterson.
+- Put everything together, in collaboration with everyone else.
+- Set up server.
+- Set up webhooks for the CI server
+- Commit status, in collaboration with the rest of the team.
 
-We test that everything works:
-
-* go to <http://localhost:8080> tp check that the CI server is running locally
-* go to your Ngrok forwarding URL (eg <http://8929b010.ngrok.io>) to check that the CI server is visible from the internet, hence visible from Github
-* make a commit in your repository
-* observe the result, in two ways:
-    * locally: in the console of your first terminal window, observe the requested URL printed on the console
-    * on github: go to `Settings >> Webhooks` in your repo, click on your newly created webhook, scroll down to "Recent Deliveries", click on the last delivery and the on the `Response tab`, you'll see the output of your server `CI job done`
-    * on ngrok: raise the terminal window with Ngrok, and you'll also the see URLs requested by Github
-
-We shutdown everything:
-
-* `Ctrl-C` in the ngrok terminal window
-* `Ctrl-C` in the ngrok java window
-* delete the webhook in the webhook configuration page.
-
-Notes:
-* by default, Github delivers a `push` JSON payloard, documented here: <https://developer.github.com/v3/activity/events/types/#pushevent>, this information can be used to get interesting information about the commit that has just been pushed.
+### Carl Peterson
+- Parsing of incoming HTTP request and its payload.
+- Retrieve older builds in collaboration with Gustaf Bergmark
+- Put everything together, in collaboration with everyone else.
+- Commit status, in collaboration with the rest of the team.
