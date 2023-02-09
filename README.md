@@ -3,6 +3,18 @@ Here is a CI server that supports continuous integration for Gradle projects.
 At each push to the project repo, the server is called as a webhook by Github. 
 Then the server builds the project, runs all tests and sets the commit status.
 
+## Documentation
+The code is commented using JavaDoc-style comments. 
+
+To compile a browsable HTML file using:
+
+**Intellij**: 
+1. In the toolbar choose *Tools*->*Generate JavaDoc*
+2. Choose a directory to save it to and click *generate*
+
+**command line**
+1. run `./gradlew javadoc` to generate JavaDocs, the files are saved in the directory *build/docs/javadoc*
+
 ## Dependencies and versions
 The CI server can only be used by Gradle Java projects, specifically `gradle-7.5.1` using JUnit5.
 Make sure to include the following dependencies in `build.gradle`.
@@ -19,6 +31,7 @@ Store the access token in file oauthtoken.secret. The access token should be sto
 The token must have access to the repo:status scope.
 
 To build and test the server locally, clone this repository.
+
 **Intellij**: 
 1. reload build.gradle
 2. to run all tests run `test` in `build.gradle`
@@ -62,6 +75,7 @@ The POST request sent to set the status must include a header containing an auth
 **NOTE: Make sure to enable permission for the token to set commit statuses.**
 
 ## Contributions
+[Link to Essence document.](https://docs.google.com/document/d/1vD2VPh_tZyq4nW-pxnheXNO_TLEkUM0Robi0SfCZ8jY/edit?usp=sharing)
 ### Glacier Ali
 - Implement CI server running tests in project, in collaboration with Frida Grönberg.
 - Commit status, in collaboration with the rest of the team.
