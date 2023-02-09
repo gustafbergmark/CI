@@ -70,7 +70,7 @@ class ContinuousIntegrationServerTest {
         ContinuousIntegrationServer.clone("https://github.com/gustafbergmark/CITest.git", "master");
         String result = ci.checkTests("./local");
         //System.out.println("ANSWER:\n" + result + "END");
-        assertTrue(result.contains("BUILD SUCCESSFUL"));
+        assertTrue(false);
     }
 
     @Test
